@@ -24,6 +24,7 @@ const userSchema = new mongoose.Schema({
   name: String,
   email: { type: String, unique: true },
   password: String,
+  role: String,
   createdAt: { type: Date, default: Date.now },
 });
 
@@ -32,7 +33,7 @@ const User = mongoose.model("User", userSchema);
 // CREATE USER API (Register)
 app.post("/create-user", async (req, res) => {
   try {
-    const { name, email, password } = req.body;
+    const { name, email, password, role } = req.body;
 
     // Check if the user already exists
     const existingUser = await User.findOne({ email });
@@ -44,7 +45,7 @@ app.post("/create-user", async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, 10);
 
     // Save user
-    const newUser = new User({ name, email, password: hashedPassword });
+    const newUser = new User({ name, email, password: hashedPassword, role });
     await newUser.save();
 
     res.status(201).json({ message: "User created successfully!" });
@@ -77,7 +78,9 @@ app.post("/login", async (req, res) => {
       { expiresIn: "1h" }
     );
 
-    res.status(200).json({ name: user.name, email: user.email, token });
+    res
+      .status(200)
+      .json({ name: user.name, email: user.email, token, role: user.role });
   } catch (error) {
     res.status(500).json({ error: "Error logging in" });
   }
@@ -187,10 +190,17 @@ app.get("/notification", async (req, res) => {
           (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
         )[0];
 
-        if (latestAction.nextFollowUp === "Today") {
+        const latestActionDate = new Date(
+          latestAction.createdAt
+        ).toDateString();
+        const todayDate = today.toDateString();
+        // Check if nextFollowUp is "Today" or createdAt matches today's date
+        if (
+          latestAction.nextFollowUp === "Today" &&
+          latestActionDate === todayDate
+        ) {
           return true;
         }
-
         const followUpDays = parseInt(latestAction.nextFollowUp);
         if (!isNaN(followUpDays)) {
           const followUpDate = new Date(latestAction.createdAt);
@@ -268,6 +278,49 @@ app.get("/onboard", async (req, res) => {
     res.status(200).json(onboardLeads);
   } catch (error) {
     res.status(500).json({ error: "Error fetching onboard leads" });
+  }
+});
+
+app.get("/missed-leads", async (req, res) => {
+  try {
+    const leads = await Form.find();
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // Normalize to midnight for accurate comparison
+
+    const notificationLeads = leads.filter((lead) => {
+      if (lead.action.length > 0) {
+        // Get the latest action
+        const latestAction = lead.action.sort(
+          (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
+        )[0];
+
+        const latestActionDate = new Date(latestAction.createdAt);
+        latestActionDate.setHours(0, 0, 0, 0); // Normalize
+
+        const todayDate = new Date();
+        todayDate.setHours(0, 0, 0, 0); // Normalize
+
+        // Case 1: nextFollowUp is "Today"
+        if (latestAction.nextFollowUp === "Today") {
+          return latestActionDate < todayDate; // Check if the last action is before today
+        }
+
+        // Case 2: nextFollowUp is a number (days)
+        const followUpDays = parseInt(latestAction.nextFollowUp, 10);
+        if (!isNaN(followUpDays)) {
+          const followUpDate = new Date(latestAction.createdAt);
+          followUpDate.setDate(followUpDate.getDate() + followUpDays);
+          followUpDate.setHours(0, 0, 0, 0); // Normalize
+          return followUpDate < todayDate; // Check if follow-up date is in the past
+        }
+      }
+      return false;
+    });
+
+    res.status(200).json(notificationLeads);
+  } catch (error) {
+    console.error("Error fetching Missed Leads:", error);
+    res.status(500).json({ error: "Error fetching Missed Leads" });
   }
 });
 

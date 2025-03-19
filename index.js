@@ -184,28 +184,31 @@ app.get("/notification", async (req, res) => {
     const leads = await Form.find();
     const today = new Date();
 
+    // Extract year, month, and date from today's date
+    const todayYear = today.getFullYear();
+    const todayMonth = today.getMonth();
+    const todayDate = today.getDate();
+
     const notificationLeads = leads.filter((lead) => {
       if (lead.action.length > 0) {
         const latestAction = lead.action.sort(
           (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
         )[0];
 
-        const latestActionDate = new Date(
-          latestAction.createdAt
-        ).toDateString();
-        const todayDate = today.toDateString();
-        // Check if nextFollowUp is "Today" or createdAt matches today's date
-        if (
-          latestAction.nextFollowUp === "Today" &&
-          latestActionDate === todayDate
-        ) {
-          return true;
-        }
-        const followUpDays = parseInt(latestAction.nextFollowUp);
-        if (!isNaN(followUpDays)) {
-          const followUpDate = new Date(latestAction.createdAt);
-          followUpDate.setDate(followUpDate.getDate() + followUpDays);
-          return followUpDate.toDateString() === today.toDateString();
+        if (latestAction.nextFollowUp) {
+          const followUpDate = new Date(latestAction.nextFollowUp);
+
+          // Extract year, month, and date from nextFollowUp
+          const followUpYear = followUpDate.getFullYear();
+          const followUpMonth = followUpDate.getMonth();
+          const followUpDay = followUpDate.getDate();
+
+          // Compare only year, month, and date
+          return (
+            followUpYear === todayYear &&
+            followUpMonth === todayMonth &&
+            followUpDay === todayDate
+          );
         }
       }
       return false;
@@ -285,39 +288,31 @@ app.get("/missed-leads", async (req, res) => {
   try {
     const leads = await Form.find();
     const today = new Date();
-    today.setHours(0, 0, 0, 0); // Normalize to midnight for accurate comparison
 
-    const notificationLeads = leads.filter((lead) => {
+    // Normalize today's date to midnight for accurate comparison
+    today.setHours(0, 0, 0, 0);
+
+    const missedLeads = leads.filter((lead) => {
       if (lead.action.length > 0) {
         // Get the latest action
         const latestAction = lead.action.sort(
           (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
         )[0];
 
-        const latestActionDate = new Date(latestAction.createdAt);
-        latestActionDate.setHours(0, 0, 0, 0); // Normalize
+        if (latestAction.nextFollowUp) {
+          const followUpDate = new Date(latestAction.nextFollowUp);
 
-        const todayDate = new Date();
-        todayDate.setHours(0, 0, 0, 0); // Normalize
+          // Normalize followUpDate to midnight to ignore time
+          followUpDate.setHours(0, 0, 0, 0);
 
-        // Case 1: nextFollowUp is "Today"
-        if (latestAction.nextFollowUp === "Today") {
-          return latestActionDate < todayDate; // Check if the last action is before today
-        }
-
-        // Case 2: nextFollowUp is a number (days)
-        const followUpDays = parseInt(latestAction.nextFollowUp, 10);
-        if (!isNaN(followUpDays)) {
-          const followUpDate = new Date(latestAction.createdAt);
-          followUpDate.setDate(followUpDate.getDate() + followUpDays);
-          followUpDate.setHours(0, 0, 0, 0); // Normalize
-          return followUpDate < todayDate; // Check if follow-up date is in the past
+          // Check if nextFollowUp is before today
+          return followUpDate < today;
         }
       }
       return false;
     });
 
-    res.status(200).json(notificationLeads);
+    res.status(200).json(missedLeads);
   } catch (error) {
     console.error("Error fetching Missed Leads:", error);
     res.status(500).json({ error: "Error fetching Missed Leads" });

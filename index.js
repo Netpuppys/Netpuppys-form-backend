@@ -155,7 +155,7 @@ app.post("/submit", async (req, res) => {
     res.status(500).json({ error: "Error submitting form" });
   }
 });
-app.get("/all-leads", async (req, res) => {
+app.get("/", async (req, res) => {
   try {
     const Allleads = await Form.find();
     res.status(200).json(Allleads);

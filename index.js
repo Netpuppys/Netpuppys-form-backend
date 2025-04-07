@@ -104,6 +104,8 @@ const formSchema = new mongoose.Schema({
   startTime: String,
   designation: String,
   description: String,
+  formName: String,
+  source: String,
   createdAt: { type: Date, default: Date.now }, // Ensuring default timestamp
   action: [
     {
@@ -133,6 +135,8 @@ app.post("/submit", async (req, res) => {
       startTime,
       designation,
       description,
+      formName,
+      source,
     } = req.body;
 
     const newForm = new Form({
@@ -145,6 +149,8 @@ app.post("/submit", async (req, res) => {
       startTime,
       designation,
       description,
+      formName,
+      source,
       createdAt: new Date(),
       action: [], // Empty array initially
     });

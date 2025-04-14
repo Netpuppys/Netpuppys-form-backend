@@ -90,10 +90,74 @@ app.post("/login", async (req, res) => {
     res.status(500).json({ error: "Error logging in" });
   }
 });
+// CHANGE PASSWORD API
+app.post("/change-password", async (req, res) => {
+  try {
+    const { email, oldPassword, newPassword } = req.body;
+
+    // Validate input
+    if (!email || !oldPassword || !newPassword) {
+      return res.status(400).json({ error: "All fields are required" });
+    }
+
+    // Find user
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    // Check old password
+    const isMatch = await bcrypt.compare(oldPassword, user.password);
+    if (!isMatch) {
+      return res.status(400).json({ error: "Old password is incorrect" });
+    }
+
+    // Hash new password
+    const hashedNewPassword = await bcrypt.hash(newPassword, 10);
+
+    // Update password
+    user.password = hashedNewPassword;
+    await user.save();
+
+    res.status(200).json({ message: "Password changed successfully" });
+  } catch (error) {
+    res.status(500).json({ error: "Error changing password" });
+  }
+});
+
+app.delete("/delete-user/:id", async (req, res) => {
+  try {
+    const userId = req.params.id;
+
+    // Check if the user exists
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    // Delete the user
+    await User.findByIdAndDelete(userId);
+
+    res.status(200).json({ message: "User deleted successfully" });
+  } catch (error) {
+    console.error("Delete user error:", error);
+    res.status(500).json({ error: "Error deleting user" });
+  }
+});
 
 app.post("/logout", (req, res) => {
   res.json({ message: "Signed out successfully" });
 });
+
+app.get("/get-users", async (req, res) => {
+  try {
+    const AllUsers = await User.find();
+    res.status(200).json(AllUsers);
+  } catch (error) {
+    res.status(500).json({ error: "Error fetching Users" });
+  }
+});
+
 const formSchema = new mongoose.Schema({
   name: String,
   email: String,
